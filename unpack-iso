@@ -1,0 +1,87 @@
+#!/bin/sh
+# ISO image unpacking utility only with using isoinfo(1)
+
+version=2.2
+extractdir=.
+usage_text="Usage: ${0##*/} [--version | --output-directory <directory>] <filename> [<filename> [...]]"
+
+while [ -n "$1" ]
+do
+	case "$1" in
+	-h|--help)
+		echo "$usage_text"
+		exit 0
+		;;
+	-V|--version|-version)
+		echo "unpack-iso $version" >&2
+		isoinfo -version >&2
+		exit 0;;
+	-D|--output-directory)
+		shift
+		extractdir=$1;;
+	--)	shift
+		break;;
+	-*)	false;;
+	*)	break;;
+	esac
+	shift
+done
+
+
+### MAIN ###
+
+IFS=$'\n'
+
+if [ -z "$1" ]
+then
+	echo "$usage_text" >&2
+	exit 1
+fi
+
+while [ -n "$1" ]
+do
+	echo -n "Building directory tree " >&2
+	isoinfo -l -i "$1" |\
+	{
+		prevline=_
+		while read thisline
+		do
+			echo -n . >&2
+			if [ "$prevline" = "" ]
+			then
+				isodir=${thisline#*/}
+				mkdir -p "${extractdir}/${isodir}"
+			fi
+			prevline=$thisline
+		done
+		echo "" >&2
+	}
+	
+	errcnt=0
+	for isofile in `isoinfo -f -i "$1"`
+	do
+		# remove trailing `;n' from filenames
+		outfile="${extractdir}/${isofile%;*}"
+		if [ ! -d "$outfile" ]
+		then
+			echo -n "${extractdir}/${isofile} ... " >&2
+			isoinfo -i "$1" -x "$isofile" >"$outfile"
+			if [ $? = 0 ]
+			then
+				echo OK >&2
+			else
+				echo ERR >&2
+				let errcnt++
+			fi
+		fi
+	done
+	
+	if [ $errcnt -gt 0 ]
+	then
+		echo "Errors: $errcnt" >&2
+		exit 1
+	fi
+	shift
+done
+
+exit 0
