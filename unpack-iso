@@ -1,5 +1,5 @@
-#!/bin/sh
-# ISO image unpacking utility only with using isoinfo(1)
+#!/bin/bash
+# ISO image unpack utility using only isoinfo(1).
 
 version=2.2
 extractdir=.
