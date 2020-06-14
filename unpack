@@ -12,12 +12,13 @@ exitcode=0
 
 _get_type_by_name()
 {
-	type=
+	type=''
 	case "${1,,}" in
 	*.tar.z|*.taz)	type=TARZ;;
 	*.tar.gz|*.tgz|*.dsl)	type=TARGZ;;
 	*.tar.bz2|*.tbz2|*.tbz)	type=TARBZ2;;
 	*.tar.xz|*.txz)	type=TARXZ;;
+	*.tar.lz|*.tlz|*.tar.lzip)	type=TARLZIP;;
 	*.tar)	type=TAR;;
 	*.z)	type=Z;;
 	*.tcz|*.squash|*.squashfs|*.sfs)	type=SQUASH;;
@@ -26,7 +27,6 @@ _get_type_by_name()
 	*.bz2)	type=BZ2;;
 	*.xz)	type=XZ;;
 	*.arj)	type=ARJ;;
-	*.lzh|*.lha)	type=LHA;;
 	*.rar)	type=RAR;;
 	*.zip|*.wsz|*.xpi|*.apk|*.odt|*.odp|*.ods|*.odg|*.odf|*.docx|*.pptx|*.ppsx|*.xlsx)	type=ZIP;;
 	*.jar)	type=JAR;;
@@ -44,6 +44,8 @@ _get_type_by_name()
 	*.uha)	type=UHA;;
 	*.lzma|*.lzm)	type=LZM;;
 	*.lzo|*.lzop)	type=LZO;;
+	*.lzh|*.lha)	type=LHA;;
+	*.lz|*.lzip)	type=LZIP;;
 	*.a|*.ar)	type=AR;;
 	*.iso)	type=ISO;;
 	thumbs.db|ehthumbs.db|thumbcache_*.db)	type=THUMBS;;
@@ -84,6 +86,7 @@ _get_type_by_mime()
 	application/x-compress)	type=Z;;
 	application/x-zoo)		type=ZOO;;
 	application/CDFV2-encrypted)	type=THUMBS;;
+	application/x-lzip)		type=LZIP;;
 	esac
 	
 	[ -n "$type" ] && return 0 || return 1
@@ -186,6 +189,7 @@ do
 			UHA)	wineconsole --backend=curses cmd /c uharc.exe l "$(winepath -w "$filepath")";;
 			XZ)		unxz -lv "$filepath";;
 			LZO)	lzop -vl "$filepath";;
+			LZIP)	echo "$0: unsupported" >&2;;
 			AR)		ar tv "$filepath";;
 			ISO)	isoinfo -l -i "$filepath";;
 			THUMBS)	vinetto "$filepath";;
@@ -222,6 +226,7 @@ do
 			LZM)	unlzma -dckv "$filepath" >"$outputbasefilepath";;
 			XZ)		unxz -cdkv "$filepath" >"$outputbasefilepath";;
 			LZO)	lzop -p "$extractdir" -vd "$filepath";;
+			LZIP)	lzip -dcv "$filepath" >"$outputbasefilepath";;
 			ISO)	unpack-iso --output-directory "$extractdir" "$filepath";;
 			THUMBS)	vinetto -o "$extractdir" "$filepath";;
 			*)		# These extractors does not take output directory parameter
