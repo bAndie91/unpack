@@ -2,8 +2,8 @@ Package: unpack
 Section: utils
 Priority: optional
 Maintainer: Andras Hrubak <andreas@uucp.hu>
-Version: 
+Version: 1.2.3
 Architecture: all
 Depends: bash
-Recommends: binutils, arj, bzip2, cabextract, dpkg, gzip, ha, genisoimage | cdrtools, lha, lzop, nomarch, rpm2cpio, tar, unace | unace-nonfree, unalz, ncompress, lzma, unrar | unrar-nonfree, squashfs-tools, xz-utils, unzip, vinetto, wine-uharc, zoo
+Recommends: binutils, arj, bzip2, cabextract, dpkg, gzip, ha, genisoimage | cdrtools, lha, lzop, nomarch, rpm2cpio, tar, unace | unace-nonfree, unalz, ncompress, lzma, unrar | unrar-nonfree, squashfs-tools, xz-utils, unzip, vinetto, wine-uharc, zoo, lzip
 Description: Archive unpack wrapper.
