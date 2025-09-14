@@ -1,0 +1,276 @@
+#!/bin/bash
+
+usage_txt="Usage: unpack [-D <directory> | -l] <file> [file] [file] ...
+	-D      Set output directory
+	-l      List content only
+	files   Files to extract/decompress"
+# Default extraction target folder
+extractdir=.
+listonly=0
+exitcode=0
+
+
+_get_type_by_name()
+{
+	type=''
+	case "${1,,}" in
+	(*.tar.z|*.taz)	type=TARZ;;
+	(*.tar.gz|*.tgz|*.dsl)	type=TARGZ;;
+	(*.tar.bz2|*.tbz2|*.tbz)	type=TARBZ2;;
+	(*.tar.xz|*.txz)	type=TARXZ;;
+	(*.tar.lz|*.tlz|*.tar.lzip)	type=TARLZIP;;
+	(*.tar)	type=TAR;;
+	(*.z)	type=Z;;
+	(*.tcz|*.squash|*.squashfs|*.sfs)	type=SQUASH;;
+	(*.cpio.gz)	type=CPIOGZ;;
+	(*.gz)	type=GZ;;
+	(*.dz)	type=DZ;;
+	(*.bz2)	type=BZ2;;
+	(*.xz)	type=XZ;;
+	(*.arj)	type=ARJ;;
+	(*.rar)	type=RAR;;
+	(*.zip|*.wsz|*.xpi|*.apk|*.odt|*.odp|*.ods|*.odg|*.odf|*.docx|*.pptx|*.ppsx|*.xlsx)	type=ZIP;;
+	(*.jar)	type=JAR;;
+	(*.zoo)	type=ZOO;;
+	(*.deb)	type=DEB;;
+	(*.dsc)	type=DSC;;
+	(*.rpm)	type=RPM;;
+	(*.cpio)	type=CPIO;;
+	(*.7z)	type=7Z;;
+	(*.cab|*.msi)	type=CAB;;
+	(*.ace)	type=ACE;;
+	(*.ha)	type=HA;;
+	(*.alz)	type=ALZ;;
+	(*.arc|*.ark)	type=ARC;;
+	(*.uha)	type=UHA;;
+	(*.lzma|*.lzm)	type=LZM;;
+	(*.lzo|*.lzop)	type=LZO;;
+	(*.lzh|*.lha)	type=LHA;;
+	(*.lz|*.lzip)	type=LZIP;;
+	(*.a|*.ar)	type=AR;;
+	(*.iso)	type=ISO;;
+	(thumbs.db|ehthumbs.db|thumbcache_*.db)	type=THUMBS;;
+	esac
+	
+	[ -n "$type" ] && return 0 || return 1
+}
+
+_get_type_by_mime()
+{
+	mime=`file --brief --mime-type "$1"`
+	type=
+	
+	mime_re=$mime
+	mime_re=${mime_re//./\.}
+	mdef=`grep -E -m1 "^$mime_re\s" /etc/mime.types`
+	if expr "$mdef" : '.*\s' >/dev/null
+	then
+		exts=${mdef#*[ 	]}
+		for ext in $exts
+		do
+			_get_type_by_name "file.$ext"
+			if [ -n "$type" ]
+			then
+				return 0
+			fi
+		done
+	fi
+	
+	case "$mime" in
+	(application/x-archive)	type=AR;;
+	(application/x-arj)		type=ARJ;;
+	(application/x-gzip|application/gzip)
+							type=GZ;;
+	(application/x-rar)		type=RAR;;
+	(application/x-rpm)		type=RPM;;
+	(application/x-bzip2)	type=BZ2;;
+	(application/x-xz)		type=XZ;;
+	(application/x-compress)	type=Z;;
+	(application/x-zoo)		type=ZOO;;
+	(application/CDFV2-encrypted)	type=THUMBS;;
+	(application/x-lzip)		type=LZIP;;
+	esac
+	
+	[ -n "$type" ] && return 0 || return 1
+}
+
+
+declare -a params=()
+
+while [ $# -gt 0 ]
+do
+	case "$1" in
+	(-h|--help|-help|"-?")
+		echo "$usage_txt"
+		exit 0
+		;;
+	(-D|--output-directory)
+		shift
+		extractdir=$(readlink -f "$1")
+		;;
+	(-l|--list)
+		listonly=1
+		;;
+	(--)
+		shift
+		break;;
+	(-*)
+		echo "$0: Invalid option: $1" >&2
+		exit 1
+		;;
+	(*)
+		params+=("$1")
+		;;
+	esac
+	shift
+done
+
+
+# file paramters are those from in-between options and the rest after a double-dash
+set -- "${params[@]}" "$@"
+
+set -u
+realextractdir=$(readlink -f "$extractdir")
+
+if [ $# = 0 ]
+then
+	echo "$usage_txt" >&2
+	exit 1
+fi
+
+while [ $# -gt 0 ]
+do
+	filepath=$1
+	filename=${filepath##*/}
+	basefilename=${filename%.*}
+	extension=${filename##*.}
+	directory=${filepath%/*}
+	realdirname=$(readlink -f "$directory")
+	outputbasefilepath="${realextractdir}/${basefilename}"
+	realfilepath=$(readlink -f "$filepath")
+	dosetexitcode=1
+	
+	
+	_get_type_by_name "$filename"
+	if [ -z "$type" ]
+	then
+		_get_type_by_mime "$filepath"
+	fi
+	if [ -z "$type" ]
+	then
+		echo "$filepath: Unknown format ($mime)" >&2
+		exit 1
+	fi
+	
+	if [ $listonly = 1 ]
+	then
+		if [ "${type:0:3}" = TAR ]
+		then
+			case "${type:3}" in
+			(Z)		tar -tvZf "$filepath";;
+			(GZ)	tar -tvzf "$filepath";;
+			(BZ2)	tar -tvjf "$filepath";;
+			(XZ)	tar -tvJf "$filepath";;
+			(*)		tar -tvf "$filepath";;
+			esac
+		else
+			case "$type" in
+			(Z)			uncompress -l "$filepath";;
+			(SQUASH)	unsquashfs -ll "$filepath";;
+			(CPIOGZ)	gunzip -dcv "$filepath" | cpio -tv;;
+			(GZ)		gunzip -lv "$filepath";;
+			(DZ)		dictunzip -lv "$filepath" || gunzip -lv "$filepath";;
+			(ARJ)		arj v "$filepath";;
+			(LHA)		lha -lv "$filepath";;
+			(RAR)		unrar lt "$filepath";;
+			(ZIP)		unzip -lv "$filepath";;
+			(JAR)		type jar >/dev/null 2>&1 && jar -tvf "$filepath" || unzip -lv "$filepath";;
+			(ZOO)		zoo Vm "$filepath";;
+			(DEB)		dpkg-deb --info "$filepath"; dpkg-deb --contents "$filepath";;
+			(RPM)		rpm2cpio "$filepath" | cpio -tv;;
+			(CPIO)		cpio -tv <"$filepath";;
+			(7Z)		7zr l "$filepath";;
+			(CAB)		cabextract -l "$filepath";;
+			(ACE)		unace l "$filepath";;
+			(HA)		ha lf "$filepath";;
+			(ALZ)		unalz -l "$filepath";;
+			(ARC)		nomarch -l -v "$filepath";;
+			(UHA)		wineconsole --backend=curses cmd /c uharc.exe l "$(winepath -w "$filepath")";;
+			(XZ)		unxz -lv "$filepath";;
+			(LZO)		lzop -vl "$filepath";;
+			(LZIP)		echo "$0: unsupported" >&2;;
+			(AR)		ar tv "$filepath";;
+			(ISO)		isoinfo -l -i "$filepath";;
+			(THUMBS)	vinetto "$filepath";;
+			esac
+		fi
+	else
+		# unpack
+		if [ "${type:0:3}" = TAR ]
+		then
+			case "${type:3}" in
+			(Z)		tar -C "$extractdir" -xvZf "$filepath";;
+			(GZ)	tar -C "$extractdir" -xvzf "$filepath";;
+			(BZ2)	tar -C "$extractdir" -xvjf "$filepath";;
+			(XZ)	tar -C "$extractdir" -xvJf "$filepath";;
+			(*)		tar -C "$extractdir" -xvf "$filepath";;
+			esac
+		else
+			case "$type" in
+			(Z)			uncompress -c "$filepath" >"$outputbasefilepath";;
+			(SQUASH)	unsquashfs -d "$outputbasefilepath" "$filepath";;
+			(GZ)		gunzip -dcv "$filepath" >"$outputbasefilepath";;
+			(DZ)		dictunzip -v "$filepath" >"$outputbasefilepath" || gunzip -dcv "$filepath" >"$outputbasefilepath";;
+			(BZ2)		bunzip2 -dcv "$filepath" >"$outputbasefilepath";;
+			(ARJ)		arj e "$filepath" "$extractdir";;
+			(LHA)		lha -xvw="$extractdir" "$filepath";;
+			(RAR)		unrar x "$filepath" "$extractdir";;
+			(ZIP)		unzip "$filepath" -d "$extractdir";;
+			(JAR)		type jar >/dev/null 2>&1 && jar -xvf "$filepath" || unzip "$filepath" -d "$extractdir";;
+			(ZOO)		zoo x. "$realfilepath";;
+			(DEB)		dpkg-deb --vextract "$filepath" "$extractdir"; dpkg-deb --control "$filepath" "$extractdir/DEBIAN/";;
+			(DSC)		dpkg-source -x "$filepath" "$extractdir";;
+			(7Z)		7zr x -o"$extractdir" "$filepath";;
+			(CAB)		cabextract -d "$extractdir" "$filepath";;
+			(ALZ)		unalz -d "$extractdir" "$filepath";;
+			(UHA)		wineconsole --backend=curses cmd /c uharc.exe x -t"$(winepath -w "$extractdir")" "$(winepath -w "$filepath")";;
+			(LZM)		unlzma -dckv "$filepath" >"$outputbasefilepath";;
+			(XZ)		unxz -cdkv "$filepath" >"$outputbasefilepath";;
+			(LZO)		lzop -p "$extractdir" -vd "$filepath";;
+			(LZIP)		lzip -dcv "$filepath" >"$outputbasefilepath";;
+			(ISO)		unpack-iso --output-directory "$extractdir" "$filepath";;
+			(THUMBS)	vinetto -o "$extractdir" "$filepath";;
+			(*)
+					# These extractors does not take output directory parameter,
+					# so chdir into the extract dir and work there.
+					set -e
+					cd "$extractdir"
+					set +e
+						case "$type" in
+						(CPIOGZ)	gunzip -dcv "$realfilepath" | cpio -vid --no-absolute-filenames --preserve-modification-time;;
+						(RPM)		rpm2cpio "$realfilepath" | cpio -vid --preserve-modification-time;;
+						(CPIO)		cat "$realfilepath" | cpio -vid --no-absolute-filenames --preserve-modification-time;;
+						(ACE)		unace e "$realfilepath";;
+						(HA)		ha xa "$realfilepath";;
+						(ARC)		nomarch "$realfilepath";;
+						(AR)		ar xvo "$realfilepath";;
+						esac
+						exitcode=$?
+						dosetexitcode=0
+					set -e
+					cd -
+					set +e
+					;;
+			esac
+		fi
+	fi
+	
+	_exitcode=$?
+	if [ $dosetexitcode = 1 ]
+	then
+		exitcode=$_exitcode
+	fi
+	shift
+done
+
+exit $exitcode

@@ -1,11 +1,15 @@
 
 default:
-	@echo 'make install?'
+	@echo 'make install perhaps?'
 	@false
 .PHONY: default
 
-install: /usr/bin/unpack
+PREFIX = /usr/bin
+SOURCES = unpack unpack-iso
+INSTALL_TARGETS = $(addprefix $(PREFIX)/,$(SOURCES))
+
+install: $(INSTALL_TARGETS)
 .PHONY: install
 
-/usr/bin/unpack: usr/local/bin/unpack
-	install $< $@
+$(INSTALL_TARGETS): $(PREFIX)/%: %
+	install --compare $< $@
